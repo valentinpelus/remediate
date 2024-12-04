@@ -1,0 +1,17 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: remediate
+build:
+  artifacts:
+    - image: remediate
+      ko: 
+        main: ./cmd/
+deploy:
+  helm:
+    releases:
+      - name: remediate
+        chartPath: remediate/remediate
+        valuesFiles:
+          - remediate/values/default/remediate.yaml.gotmpl
+        version: 1.0.0
