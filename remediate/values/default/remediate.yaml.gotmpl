@@ -1,0 +1,24 @@
+go:
+  image:
+    tag: v0.5
+
+imageRegistry: valaire
+
+env: test
+
+webhookUrl:
+
+remediation:
+  config:
+    queryUrl: http://10.244.0.71:9093
+    clusterName:
+    slackClient:
+      userName: testUser
+      channel: testChannel
+    alertRulesList:
+    - alertname: "haproxyBackendSizeDivergence"
+      enabled: true
+      action: "deletePod"
+  security:
+    namespace_remediate: "monitoring"
+    namespace_ic: "ingress-controller-v2"
