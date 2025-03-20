@@ -7,18 +7,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func postMessageSlack(alertName string, namespace string, confPath *string) {
+func postMessageSlack(alertInfo map[string]interface{}, confPath *string) {
 	conf.LoadConfSlack(*confPath)
 
-	log.Info().Msgf("Alert notif %s %s", alertName, namespace)
+	log.Info().Msgf("Alert notif %s %s", alertInfo["alertName"], alertInfo["namespace"])
 
 	url := conf.ConfigurationSlack.WebhookUrl
 	username := conf.ConfigurationSlack.SlackClient.UserName
 	channel := conf.ConfigurationSlack.SlackClient.Channel
 	clusterName := conf.ConfigurationSlack.ClusterName
+	alertName := alertInfo["alertName"].(string)
+	podName := alertInfo["podName"].(string)
+	namespace := alertInfo["namespace"].(string)
 
-	log.Info().Msgf("Slack url %s", url)
+	//log.Info().Msgf("Slack url %s", url)
 	log.Info().Msgf("Slack clusterName %s", clusterName)
+
+	slackDetail := "*Alert triggered*: " + alertName +
+		"\r\n *Cluster*: " + clusterName +
+		"\r\n *Namespace*: " + namespace +
+		"\r\n *Pod*: " + podName +
+		"\r\n *Namespace*: " + namespace
 
 	// Loading slack
 	sc := notif.SlackClient{
@@ -28,11 +37,9 @@ func postMessageSlack(alertName string, namespace string, confPath *string) {
 	}
 
 	sr := notif.SlackJobNotification{
-		Title: "Remediate - The auto-remediation has been triggered",
-		Text:  "Remediate - The auto-remediation has been triggered",
-		Details: "*Alert remediated*: " + alertName +
-			"\r\n *Cluster*: " + clusterName +
-			"\r\n *Namespace*: " + namespace,
+		Title:     "Remediate has been triggered",
+		Text:      "Remediate has been triggered",
+		Details:   slackDetail,
 		Color:     "#5581d9",
 		IconEmoji: "necron",
 	}

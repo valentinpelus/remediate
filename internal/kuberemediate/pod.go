@@ -36,20 +36,28 @@ func GetPod(podName string, namespace string, clientset *kubernetes.Clientset) (
 	}
 	podMap := make(map[string]string)
 	podMap["Name"] = pod.Name
+	podMap["Kind"] = pod.Kind
 	podMap["Namespace"] = pod.Namespace
 	podMap["LabelInstance"] = pod.Labels["app.kubernetes.io/instance"]
 	podMap["LabelName"] = pod.Labels["app.kubernetes.io/name"]
 	podMap["LabelProject"] = pod.Labels["project"]
+	if len(pod.OwnerReferences) > 0 {
+		podMap["rsName"] = pod.OwnerReferences[0].Name
+		log.Info().Msgf("pod.go Getting Pod %s", podMap["rsName"])
+	}
 	fmt.Println(podMap)
 	return podMap, nil
 }
 
 func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
 
+	podName := podInfo["podName"].(string)
+	namespace := podInfo["namespace"].(string)
+	podCount, _ := podInfo["podCount"].(int)
 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
-	podQuery, err := GetPod(podInfo["podName"].(string), podInfo["namespace"].(string), clientset)
+	podQuery, err := GetPod(podName, namespace, clientset)
 	if err != nil {
-		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podInfo["podName"], podInfo["namespace"])
+		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
 		return false
 	}
 
@@ -62,23 +70,25 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 		podLabelTarget = "app.kubernetes.io/name=" + podQuery["app.kubernetes.io/name"]
 	}
 
-	fmt.Println("pod.go Pod Label Target : ", podLabelTarget)
+	log.Info().Msgf("pod.go Pod Label Target : %s", podLabelTarget)
+	log.Info().Msgf("pod.go Pod Query : %s", podName)
 
 	// Listing Pods from chosen namespace, targeting the right label
-	pods, err := clientset.CoreV1().Pods(podInfo["namespace"].(string)).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
+	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
+	log.Info().Msgf("pod.go Listing pods from namespace %s", pods)
 	if err != nil {
 		log.Warn().Msgf("pod.go Error issued during pod listing on namespace. Backing off")
 		return false
 	}
-	log.Info().Msgf("pod.go Searching pod %s in namespace %s", podInfo["podName"], podInfo["namespace"])
+	log.Info().Msgf("pod.go Searching pod %s in namespace %s", podName, namespace)
 	// Using func checkQuotaPod to check the ammount of healthy pod on our project
-	podCount, _ := podInfo["podCount"].(int)
-	if checkQuotaPod(podInfo["namespace"].(string), podLabelTarget, podCount, clientset) {
-		log.Info().Msgf("pod.go More than 2 pod on namespace %s can proceed to actions", podInfo["namespace"])
+
+	if checkQuotaPod(namespace, podLabelTarget, podCount, clientset) {
+		log.Info().Msgf("pod.go More than 2 pod on namespace %s can proceed to actions", namespace)
 		// Making sure we are targeting running pod and not backoff/restarting one
 		for _, podsList := range (pods).Items {
-			if (podsList.Name == podInfo["podName"]) && (podsList.Status.Phase == "Running") {
-				log.Info().Msgf("Found pod %s in namespace %s in status %s", podInfo["podName"], podInfo["namespace"], podsList.Status.Phase)
+			if (podsList.Name == podName) && (podsList.Status.Phase == "Running") {
+				log.Info().Msgf("Found pod %s in namespace %s in status %s", podName, namespace, podsList.Status.Phase)
 				return true
 			}
 		}

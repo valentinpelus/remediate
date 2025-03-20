@@ -123,7 +123,8 @@ func ParseMatchList(alertPodExtractList [][]string, confPath *string, clientset 
 		namespace := podInfo["namespace"].(string)
 		// Check if podName and namespace are not empty
 		if (len(podName) > 0) && (len(namespace) > 0) {
-			log.Info().Msgf("alert.go Detecting pod %s in namespace %s", podInfo["podName"], podInfo["namespace"])
+			log.Info().Msgf("alert.go alertAction %s", podInfo["alertAction"])
+			log.Info().Msgf("alert.go Detecting pod %s in namespace %s with alertAction %s", podInfo["podName"], podInfo["namespace"], podInfo["alertAction"])
 			// Parse returned alertPodExtractList to determine which action should be done with remediate
 			switch podInfo["alertAction"] {
 			case "deletePod":
@@ -131,11 +132,11 @@ func ParseMatchList(alertPodExtractList [][]string, confPath *string, clientset 
 				triggeredAction := DeletePod(podInfo, clientset)
 				time.Sleep(5 * time.Second)
 				if triggeredAction {
-					postMessageSlack(podInfo["alertName"].(string), namespace, confPath)
+					postMessageSlack(podInfo, confPath)
 				}
 			case "enrichAlert":
-				//kuberemediate.DescribeDeployment(podName, clientset, namespace)
-
+				log.Info().Msgf("alert.go Enrich alert %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
+				getHpa(podInfo, clientset)
 			}
 		}
 	}

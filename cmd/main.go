@@ -62,14 +62,18 @@ func main() {
 	ListSupportedAlert := conf.EnabledAlertList
 
 	fmt.Println(ListSupportedAlert)
+	/* 	go func() {
+		log.Info().Msgf("HTTP server listening on :3131")
+		ApiServer()
+	}() */
 
 	for {
 		time.Sleep(20 * time.Second)
 		log.Info().Msgf("main.go Check ongoing")
-		// Querying Alertmanager to check if alert is firing for backend size divergence and proceed to deletion if needed
+		// Querying Alertmanager to check if alert is firing
 		alertPodExtractList := kuberemediate.GetAlertList(jsonUrl, ListSupportedAlert)
 		fmt.Println("Print of return alertPodExtractList : ", alertPodExtractList)
-		// Looping in the alerts list returned by GetVMAlerMatch
-		kuberemediate.ParseAlertList(alertPodExtractList, confPath, clientset)
+		// Looping in the alerts list returned by GetVMAlerMatch to parse the alerts and remediate them
+		kuberemediate.ParseMatchList(alertPodExtractList, confPath, clientset)
 	}
 }
