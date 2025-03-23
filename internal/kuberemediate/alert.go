@@ -137,6 +137,9 @@ func ParseMatchList(alertPodExtractList [][]string, confPath *string, clientset 
 			case "enrichAlert":
 				log.Info().Msgf("alert.go Enrich alert %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
 				getHpa(podInfo, clientset)
+			case "logPod":
+				log.Info().Msgf("alert.go Log pod %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
+				GetLogPod(podInfo, clientset, false)
 			}
 		}
 	}

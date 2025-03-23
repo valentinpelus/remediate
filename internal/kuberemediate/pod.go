@@ -1,9 +1,12 @@
 package kuberemediate
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -112,4 +115,41 @@ func checkQuotaPod(namespace string, podLabelTarget string, podAmmount int, clie
 	// If we have more than the ammount of pod returned by the alert - 2 and if we have at minimum 2 pod on the project running, then we can proceed
 	// It aims to avoid deleting all pods of the same project directly
 	return len(pods.Items) >= podAmmount-2 && len(pods.Items) >= 2
+}
+
+func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
+
+	podName := podInfo["podName"].(string)
+	namespace := podInfo["namespace"].(string)
+	// Pod Log options
+	count := int64(100)
+	podLogOptions := v1.PodLogOptions{
+		Container: "test5",
+		Follow:    false,
+		TailLines: &count,
+	}
+	log.Info().Msgf("pod.go LogOptions : %s", &podLogOptions)
+	log.Info().Msgf("pod.go Getting Pod Log %s from namespace %s", podName, namespace)
+
+	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOptions)
+	if req != nil {
+		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
+	}
+	stream, err := req.Stream(context.TODO())
+	if err != nil {
+		log.Error().Msgf("pod.go Error in opening stream for pod %s from namespace %s", podName, namespace)
+	}
+	defer stream.Close()
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, stream)
+	if err != nil {
+		log.Error().Msgf("pod.go Error in copying pod logs for pod %s from namespace %s", podName, namespace)
+	}
+	str := buf.String()
+
+	log.Info().Msgf("pod.go Getting Pod Log %s", str)
+	return str
+
+	//return nil, nil
 }
