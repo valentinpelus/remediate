@@ -1,4 +1,4 @@
-package kuberemediate
+package kubemanage
 
 import (
 	"context"

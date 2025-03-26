@@ -1,4 +1,4 @@
-package kuberemediate
+package kubemanage
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func getHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
+func GetHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
 
 	// Get HPA by it's name and check if it's present in the namespace
 	deployment, err := getDeployment(podInfo, clientset)
@@ -18,7 +18,7 @@ func getHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) boo
 	}
 
 	hpa, err := clientset.AutoscalingV1().HorizontalPodAutoscalers(deployment.deploymentNamespace).Get(context.TODO(), deployment.deploymentName, metav1.GetOptions{})
-	log.Info().Msgf("hpa.go Getting HPA global :  %s", hpa)
+	log.Trace().Msgf("hpa.go Getting HPA global :  %s", hpa)
 	hpaInfo := make(map[string]interface{})
 	hpaInfo["hpaName"] = hpa.Name
 	hpaInfo["namespace"] = hpa.Namespace

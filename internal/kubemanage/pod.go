@@ -1,12 +1,9 @@
-package kuberemediate
+package kubemanage
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -46,7 +43,6 @@ func GetPod(podName string, namespace string, clientset *kubernetes.Clientset) (
 	podMap["LabelProject"] = pod.Labels["project"]
 	if len(pod.OwnerReferences) > 0 {
 		podMap["rsName"] = pod.OwnerReferences[0].Name
-		log.Info().Msgf("pod.go Getting Pod %s", podMap["rsName"])
 	}
 	fmt.Println(podMap)
 	return podMap, nil
@@ -56,7 +52,6 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 
 	podName := podInfo["podName"].(string)
 	namespace := podInfo["namespace"].(string)
-	podCount, _ := podInfo["podCount"].(int)
 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
 	podQuery, err := GetPod(podName, namespace, clientset)
 	if err != nil {
@@ -86,7 +81,7 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 	log.Info().Msgf("pod.go Searching pod %s in namespace %s", podName, namespace)
 	// Using func checkQuotaPod to check the ammount of healthy pod on our project
 
-	if checkQuotaPod(namespace, podLabelTarget, podCount, clientset) {
+	if getPodCountForNamespace(namespace, podLabelTarget, clientset) >= 2 {
 		log.Info().Msgf("pod.go More than 2 pod on namespace %s can proceed to actions", namespace)
 		// Making sure we are targeting running pod and not backoff/restarting one
 		for _, podsList := range (pods).Items {
@@ -102,54 +97,54 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 	return false
 }
 
-func checkQuotaPod(namespace string, podLabelTarget string, podAmmount int, clientset *kubernetes.Clientset) bool {
+func getPodCountForNamespace(namespace string, podLabelTarget string, clientset *kubernetes.Clientset) int {
 
 	// Using this func to check if we have more than one pod on our namespace before taking any action, avoiding creating chain reaction
 	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
 	if err != nil {
 		log.Error().Msgf("pod.go Error in getting number pods from namespace %s", namespace)
-		return false
+		return 0
 	}
 	log.Info().Msgf("pod.go Checking number of pod on namespace %s before taking actions", namespace)
 
 	// If we have more than the ammount of pod returned by the alert - 2 and if we have at minimum 2 pod on the project running, then we can proceed
 	// It aims to avoid deleting all pods of the same project directly
-	return len(pods.Items) >= podAmmount-2 && len(pods.Items) >= 2
+	return len(pods.Items)
 }
 
-func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
+// func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
 
-	podName := podInfo["podName"].(string)
-	namespace := podInfo["namespace"].(string)
-	// Pod Log options
-	count := int64(100)
-	podLogOptions := v1.PodLogOptions{
-		Container: "test5",
-		Follow:    false,
-		TailLines: &count,
-	}
-	log.Info().Msgf("pod.go LogOptions : %s", &podLogOptions)
-	log.Info().Msgf("pod.go Getting Pod Log %s from namespace %s", podName, namespace)
+// 	podName := podInfo["podName"].(string)
+// 	namespace := podInfo["namespace"].(string)
+// 	// Pod Log options
+// 	count := int64(100)
+// 	podLogOptions := v1.PodLogOptions{
+// 		Container: "test5",
+// 		Follow:    false,
+// 		TailLines: &count,
+// 	}
+// 	log.Info().Msgf("pod.go LogOptions : %s", &podLogOptions)
+// 	log.Info().Msgf("pod.go Getting Pod Log %s from namespace %s", podName, namespace)
 
-	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
-	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOptions)
-	if req != nil {
-		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
-	}
-	stream, err := req.Stream(context.TODO())
-	if err != nil {
-		log.Error().Msgf("pod.go Error in opening stream for pod %s from namespace %s", podName, namespace)
-	}
-	defer stream.Close()
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, stream)
-	if err != nil {
-		log.Error().Msgf("pod.go Error in copying pod logs for pod %s from namespace %s", podName, namespace)
-	}
-	str := buf.String()
+// 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
+// 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOptions)
+// 	if req != nil {
+// 		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
+// 	}
+// 	stream, err := req.Stream(context.TODO())
+// 	if err != nil {
+// 		log.Error().Msgf("pod.go Error in opening stream for pod %s from namespace %s", podName, namespace)
+// 	}
+// 	defer stream.Close()
+// 	buf := new(bytes.Buffer)
+// 	_, err = io.Copy(buf, stream)
+// 	if err != nil {
+// 		log.Error().Msgf("pod.go Error in copying pod logs for pod %s from namespace %s", podName, namespace)
+// 	}
+// 	str := buf.String()
 
-	log.Info().Msgf("pod.go Getting Pod Log %s", str)
-	return str
+// 	log.Info().Msgf("pod.go Getting Pod Log %s", str)
+// 	return str
 
-	//return nil, nil
-}
+// 	//return nil, nil
+// }

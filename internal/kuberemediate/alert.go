@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/valentinpelus/remediate/internal/kubemanage"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -42,21 +43,25 @@ func GetAlertList(server string, SupportedAlert [][]string) (array [][]string) {
 	// Initialisation of GET request
 	res, err := http.Get(server)
 	if err != nil {
-		log.Fatal().Msgf("alert.go Error in GET request %s ", err)
+		log.Error().Msgf("alert.go Error in GET request %s ", err)
 	}
 	// Closing request
 	defer res.Body.Close()
 
+	if res.StatusCode != 200 {
+		log.Error().Msgf("alert.go Error in GET request, returning status code %s ", res.Status)
+	}
+
 	// Reading Body content
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal().Msgf("alert.go Error in reading body %s ", err)
+		log.Error().Msgf("alert.go Error in reading body %s ", err)
 	}
 
 	// Serialising return of Body into JSON
 	var response Response
 	if err := json.Unmarshal(body, &response); err != nil {
-		log.Fatal().Msgf("alert.go Error in reading body %s ", err)
+		log.Error().Msgf("alert.go Error in reading body %s ", err)
 	}
 
 	wg := new(sync.WaitGroup)
@@ -129,17 +134,18 @@ func ParseMatchList(alertPodExtractList [][]string, confPath *string, clientset 
 			switch podInfo["alertAction"] {
 			case "deletePod":
 				log.Info().Msgf("alert.go Delete pod %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
-				triggeredAction := DeletePod(podInfo, clientset)
+				triggeredAction := kubemanage.DeletePod(podInfo, clientset)
 				time.Sleep(5 * time.Second)
 				if triggeredAction {
 					postMessageSlack(podInfo, confPath)
 				}
 			case "enrichAlert":
 				log.Info().Msgf("alert.go Enrich alert %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
-				getHpa(podInfo, clientset)
-			case "logPod":
-				log.Info().Msgf("alert.go Log pod %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
-				GetLogPod(podInfo, clientset, false)
+				kubemanage.GetHpa(podInfo, clientset)
+				// case "logPod":
+				// 	log.Info().Msgf("alert.go Log pod %s in namespace %s in error", podInfo["podName"], podInfo["namespace"])
+				// 	kubemanage.GetLogPod(podInfo, clientset, false)
+				//
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-package kuberemediate
+package kubemanage
 
 import (
 	"context"
@@ -24,18 +24,18 @@ func getDeployment(podInfo map[string]interface{}, clientset *kubernetes.Clients
 	podMap["Name"] = deplPod["Name"]
 	podMap["Namespace"] = deplPod["Namespace"]
 	podMap["RSName"] = deplPod["rsName"]
-	log.Info().Msgf("deployment.go Printing Pod global : %s ", podMap)
+	log.Trace().Msgf("deployment.go Printing Pod global : %s ", podMap)
 
 	// Get ReplicaSet by it's name and check if it's present in the namespace
 	replica, err := getReplicaSet(podMap, clientset)
 	if err != nil {
 		log.Error().Msgf("Error in executing func to get RS")
 	}
-	log.Info().Msgf("deployment.go Printing RS global : %s ", replica)
+	log.Trace().Msgf("deployment.go Printing RS global : %s ", replica)
 
 	// Get Deployment from RS's name
 	depl, err := clientset.AppsV1().Deployments(replica["Namespace"]).Get(context.Background(), replica["Deployment"], metav1.GetOptions{})
-	log.Info().Msgf("deployment.go Printing Deployment global : %s ", depl)
+	log.Trace().Msgf("deployment.go Printing Deployment global : %s ", depl)
 	deploymentName := depl.Name
 	deploymentNamespace := depl.Namespace
 	log.Info().Msgf("deployment.go Getting Deployment %s from namespace %s", deploymentName, deploymentNamespace)

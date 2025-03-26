@@ -29,7 +29,7 @@ func main() {
 	// Init of zerolog library and config
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	confPath := flag.String("conf", "config.yaml", "Config path")
-	debug := flag.Bool("debug", false, "sets log level to debug")
+	debug := flag.Bool("info", false, "sets log level to info")
 	//tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	flag.Parse()
 
