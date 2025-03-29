@@ -1,9 +1,11 @@
 package kubemanage
 
 import (
+	"bytes"
 	"context"
-	"fmt"
+	"io"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -31,20 +33,27 @@ func GetPod(podName string, namespace string, clientset *kubernetes.Clientset) (
 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
 	pod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	if err != nil {
-		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
 		return nil, err
 	}
 	podMap := make(map[string]string)
 	podMap["Name"] = pod.Name
 	podMap["Kind"] = pod.Kind
 	podMap["Namespace"] = pod.Namespace
-	podMap["LabelInstance"] = pod.Labels["app.kubernetes.io/instance"]
-	podMap["LabelName"] = pod.Labels["app.kubernetes.io/name"]
-	podMap["LabelProject"] = pod.Labels["project"]
+	podMap["NodeName"] = pod.Spec.NodeName
+	podMap["Status"] = string(pod.Status.Phase)
+	if len(pod.Labels["app.kubernetes.io/instance"]) > 0 {
+		podMap["LabelInstance"] = pod.Labels["app.kubernetes.io/instance"]
+	}
+	if len(pod.Labels["app.kubernetes.io/name"]) > 0 {
+		podMap["LabelName"] = pod.Labels["app.kubernetes.io/name"]
+	}
+	if len(pod.Labels["project"]) > 0 {
+		podMap["LabelProject"] = pod.Labels["project"]
+	}
 	if len(pod.OwnerReferences) > 0 {
 		podMap["rsName"] = pod.OwnerReferences[0].Name
 	}
-	fmt.Println(podMap)
+
 	return podMap, nil
 }
 
@@ -68,8 +77,7 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 		podLabelTarget = "app.kubernetes.io/name=" + podQuery["app.kubernetes.io/name"]
 	}
 
-	log.Info().Msgf("pod.go Pod Label Target : %s", podLabelTarget)
-	log.Info().Msgf("pod.go Pod Query : %s", podName)
+	log.Info().Msgf("pod.go Pod name %s and Label Target : %s", podName, podLabelTarget)
 
 	// Listing Pods from chosen namespace, targeting the right label
 	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
@@ -112,39 +120,39 @@ func getPodCountForNamespace(namespace string, podLabelTarget string, clientset 
 	return len(pods.Items)
 }
 
-// func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
+func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
 
-// 	podName := podInfo["podName"].(string)
-// 	namespace := podInfo["namespace"].(string)
-// 	// Pod Log options
-// 	count := int64(100)
-// 	podLogOptions := v1.PodLogOptions{
-// 		Container: "test5",
-// 		Follow:    false,
-// 		TailLines: &count,
-// 	}
-// 	log.Info().Msgf("pod.go LogOptions : %s", &podLogOptions)
-// 	log.Info().Msgf("pod.go Getting Pod Log %s from namespace %s", podName, namespace)
+	podName := podInfo["podName"].(string)
+	namespace := podInfo["namespace"].(string)
+	// Pod Log options
+	count := int64(100)
+	podLogOptions := v1.PodLogOptions{
+		Container: "test5",
+		Follow:    false,
+		TailLines: &count,
+	}
+	log.Info().Msgf("pod.go LogOptions : %s", &podLogOptions)
+	log.Info().Msgf("pod.go Getting Pod Log %s from namespace %s", podName, namespace)
 
-// 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
-// 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOptions)
-// 	if req != nil {
-// 		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
-// 	}
-// 	stream, err := req.Stream(context.TODO())
-// 	if err != nil {
-// 		log.Error().Msgf("pod.go Error in opening stream for pod %s from namespace %s", podName, namespace)
-// 	}
-// 	defer stream.Close()
-// 	buf := new(bytes.Buffer)
-// 	_, err = io.Copy(buf, stream)
-// 	if err != nil {
-// 		log.Error().Msgf("pod.go Error in copying pod logs for pod %s from namespace %s", podName, namespace)
-// 	}
-// 	str := buf.String()
+	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOptions)
+	if req != nil {
+		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
+	}
+	stream, err := req.Stream(context.TODO())
+	if err != nil {
+		log.Error().Msgf("pod.go Error in opening stream for pod %s from namespace %s", podName, namespace)
+	}
+	defer stream.Close()
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, stream)
+	if err != nil {
+		log.Error().Msgf("pod.go Error in copying pod logs for pod %s from namespace %s", podName, namespace)
+	}
+	str := buf.String()
 
-// 	log.Info().Msgf("pod.go Getting Pod Log %s", str)
-// 	return str
+	log.Info().Msgf("pod.go Getting Pod Log %s", str)
+	return str
 
-// 	//return nil, nil
-// }
+	//return nil, nil
+}

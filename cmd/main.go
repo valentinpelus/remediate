@@ -57,7 +57,7 @@ func main() {
 	Client = &http.Client{}
 
 	// Init AMUrl to allow alerts query
-	jsonUrl := conf.Conf.QueryURL + "/api/v1/alerts"
+	jsonUrl := conf.Conf.QueryURL + "/api/v2/alerts"
 
 	ListSupportedAlert := conf.EnabledAlertList
 
