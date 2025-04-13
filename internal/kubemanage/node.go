@@ -2,6 +2,7 @@ package kubemanage
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -124,10 +125,14 @@ func DrainNode(nodeName string, clientset *kubernetes.Clientset) (bool, error) {
 
 	for _, pod := range pods.Items {
 		// Skip daemonset-managed pods
+		log.Info().Msgf("node.go Pod owner references %v", pod.ObjectMeta.OwnerReferences)
 		for _, ownerRef := range pod.ObjectMeta.OwnerReferences {
 			if ownerRef.Kind == "DaemonSet" {
 				log.Info().Msgf("node.go Skipping eviction for DaemonSet pod %s", pod.Name)
 				continue
+			} else if strings.Contains(ownerRef.Name, "remediate") {
+				log.Info().Msgf("node.go Will not proceed to eviction on node where remediate pod stays %s", pod.Name)
+				return false, nil
 			}
 		}
 		// Skip pods with emptyDir volumes if --delete-empty-dir-data is not set

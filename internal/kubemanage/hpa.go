@@ -8,13 +8,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
+func GetHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) (bool, error) {
 
 	// Get HPA by it's name and check if it's present in the namespace
 	deployment, err := getDeployment(podInfo, clientset)
 	log.Info().Msgf("hpa.go Getting Deployment %s from namespace %s", deployment.deploymentName, deployment.deploymentNamespace)
 	if err != nil {
 		log.Error().Msgf("Error in getting HPA %s from namespace %s", deployment.deploymentName, deployment.deploymentNamespace)
+		return false, err
 	}
 
 	hpa, err := clientset.AutoscalingV1().HorizontalPodAutoscalers(deployment.deploymentNamespace).Get(context.TODO(), deployment.deploymentName, metav1.GetOptions{})
@@ -26,7 +27,7 @@ func GetHpa(podInfo map[string]interface{}, clientset *kubernetes.Clientset) boo
 	if err != nil {
 		log.Error().Msgf("Error in getting HPA %s from namespace %s", hpaInfo["hpaName"], hpaInfo["namespace"])
 	}
-	return false
+	return true, nil
 }
 
 /* func describeHpa(hpaName string, namespace string, clientset *kubernetes.Clientset) (interface{}, error) {

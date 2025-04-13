@@ -14,25 +14,12 @@ import (
 
 var podLabelTarget string
 
-func DeletePod(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
-
-	gracePeriod := int64(0)
-	if checkPodPresence(podInfo, clientset) {
-		log.Info().Msgf("pod.go Deleting pod %s", podInfo["podName"])
-		if err := clientset.CoreV1().Pods(podInfo["namespace"].(string)).Delete(context.TODO(), podInfo["podName"].(string), metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil {
-			log.Info().Msgf("pod.go Error in deletion of pod %s", podInfo["podName"])
-			return false
-		}
-		return true
-	}
-	return false
-}
-
 func GetPod(podName string, namespace string, clientset *kubernetes.Clientset) (map[string]string, error) {
 
 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
 	pod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	if err != nil {
+		log.Error().Msgf("pod.go Error in getting pod %s : %s", podName, err)
 		return nil, err
 	}
 	podMap := make(map[string]string)
@@ -57,15 +44,35 @@ func GetPod(podName string, namespace string, clientset *kubernetes.Clientset) (
 	return podMap, nil
 }
 
-func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clientset) bool {
+func DeletePod(podInfo map[string]interface{}, clientset *kubernetes.Clientset) (bool, error) {
+
+	gracePeriod := int64(0)
+	// Check if pod is present in the namespace and delete it
+	podPresent, err := checkPodPresence(podInfo, clientset)
+	if err != nil {
+		log.Error().Msgf("pod.go Error in checking pod presence : %s", err)
+		return false, err
+	}
+	if podPresent {
+		log.Info().Msgf("pod.go Deleting pod %s", podInfo["podName"])
+		if err := clientset.CoreV1().Pods(podInfo["namespace"].(string)).Delete(context.TODO(), podInfo["podName"].(string), metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil {
+			log.Info().Msgf("pod.go Error in deletion of pod %s : %s", podInfo["podName"], err)
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clientset) (bool, error) {
 
 	podName := podInfo["podName"].(string)
 	namespace := podInfo["namespace"].(string)
 	// Get pod by it's name and check if it's present in the namespace, it will help to target the required project's pods with it's label
 	podQuery, err := GetPod(podName, namespace, clientset)
 	if err != nil {
-		log.Error().Msgf("pod.go Error in getting pod %s from namespace %s", podName, namespace)
-		return false
+		log.Error().Msgf("pod.go Error in getting pod %s : %s", podName, err)
+		return false, err
 	}
 
 	// We will check the labels of our pod to find the right target to list all pods concerning the same project
@@ -83,44 +90,49 @@ func checkPodPresence(podInfo map[string]interface{}, clientset *kubernetes.Clie
 	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
 	log.Info().Msgf("pod.go Listing pods from namespace %s", pods)
 	if err != nil {
-		log.Warn().Msgf("pod.go Error issued during pod listing on namespace. Backing off")
-		return false
+		log.Warn().Msgf("pod.go Error issued during pod listing on namespace. Backing off : %s", err)
+		return false, err
 	}
 	log.Info().Msgf("pod.go Searching pod %s in namespace %s", podName, namespace)
 	// Using func checkQuotaPod to check the ammount of healthy pod on our project
 
-	if getPodCountForNamespace(namespace, podLabelTarget, clientset) >= 2 {
+	podAmount, err := getPodCountForNamespace(namespace, podLabelTarget, clientset)
+	if err != nil {
+		log.Error().Msgf("pod.go Error in getting number pods from namespace %s", namespace)
+		return false, err
+	}
+	if podAmount >= 2 {
 		log.Info().Msgf("pod.go More than 2 pod on namespace %s can proceed to actions", namespace)
 		// Making sure we are targeting running pod and not backoff/restarting one
 		for _, podsList := range (pods).Items {
 			if (podsList.Name == podName) && (podsList.Status.Phase == "Running") {
 				log.Info().Msgf("Found pod %s in namespace %s in status %s", podName, namespace, podsList.Status.Phase)
-				return true
+				return true, nil
 			}
 		}
 	} else {
 		log.Warn().Msgf("pod.go Warning issued during deletion, the ratio between unhealthy pod and healthy one is not optimal, therefore no action will be taken. Backing off")
-		return false
+		return false, nil
 	}
-	return false
+	return false, nil
 }
 
-func getPodCountForNamespace(namespace string, podLabelTarget string, clientset *kubernetes.Clientset) int {
+func getPodCountForNamespace(namespace string, podLabelTarget string, clientset *kubernetes.Clientset) (int, error) {
 
 	// Using this func to check if we have more than one pod on our namespace before taking any action, avoiding creating chain reaction
 	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: podLabelTarget})
 	if err != nil {
-		log.Error().Msgf("pod.go Error in getting number pods from namespace %s", namespace)
-		return 0
+		log.Error().Msgf("pod.go Error in getting number pods from namespace %s : %s", namespace, err)
+		return 0, err
 	}
 	log.Info().Msgf("pod.go Checking number of pod on namespace %s before taking actions", namespace)
 
 	// If we have more than the ammount of pod returned by the alert - 2 and if we have at minimum 2 pod on the project running, then we can proceed
 	// It aims to avoid deleting all pods of the same project directly
-	return len(pods.Items)
+	return len(pods.Items), nil
 }
 
-func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) string {
+func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, follow bool) (string, error) {
 
 	podName := podInfo["podName"].(string)
 	namespace := podInfo["namespace"].(string)
@@ -152,7 +164,7 @@ func GetLogPod(podInfo map[string]interface{}, clientset *kubernetes.Clientset, 
 	str := buf.String()
 
 	log.Info().Msgf("pod.go Getting Pod Log %s", str)
-	return str
+	return str, nil
 
 	//return nil, nil
 }
