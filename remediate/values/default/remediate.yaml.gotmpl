@@ -1,0 +1,24 @@
+go:
+  image:
+    tag: v1.0.0
+
+imageRegistry: test
+
+env: test
+
+webhookUrl:
+
+remediation:
+  config:
+    queryUrl: http://test:port
+    clusterName:
+    slackClient:
+      userName: testUser
+      channel: testChannel
+    alertRulesList:
+    - alertname: "testAlert"
+      enabled: true
+      action: "deletePod"
+  security:
+    namespace_remediate: "test"
+    namespace_ic: "test_target"
